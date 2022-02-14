@@ -1,45 +1,73 @@
 from bs4 import BeautifulSoup
 import argparse
-
-
-def automata_href(tag,soup):
-  for m in soup.findAll(tag,href=True):
-      x=m['href']
-      ans=r"{% static '"+x+"' %}"
-      m['href']=ans
-      print(ans)
-  
-
-def automata_src(tag,soup):
-  for m in soup.findAll(tag,src=True):
-      x=m['src']
-      ans=r"{% static '"+x+"' %}"
-      m['src']=ans
-      print(ans)
-  
-
-
-
-
-def modify_link(src_path,dest_path,output_filename=""):
-    with open(src_path) as fp:
-      soup = BeautifulSoup(fp, 'html.parser')
-      print(soup)
+import os
+import shutil
+import glob
+def replace_text(m,key):
+    x=m[key]
+    ans=r"{% static '"+x+"' %}"
     
+    m[key]=ans
 
-      list_tag=['link','a','img']
+def url_based_replace(m,key):
+     x=m[key]
+     x=x.split(".")[0]
+     ans=r"{% url '"+x+"' %}"
+     m[key]=ans
 
-      for tag in list_tag:
-        if tag!='img':
-          automata_href(tag,soup=soup)
-        else:
-          print(tag)
-          automata_src(tag,soup=soup)
-    with open(output_filename, "w", encoding='utf-8') as file:
-      file.write(str(soup))
+def automata_href(list_tag,soup,html_file_list):
+  html_file_list=[i.split("/")[-1] for i in html_file_list]
+  for m in soup.findAll(list_tag):
+      
+      if m.name in ['a','link']:
+          x=m['href']
+        
+          if x in html_file_list:
+             
+             url_based_replace(m,'href')
+             print("url")
+          else:
+            replace_text(m,'href')
+
+      if m.name in ['script','img']:
+         
+         replace_text(m, 'src')
 
 
+def reset_folder_file_copy(src_rest_fd,dest_rest_fd):
+  if os.path.isfile(src_rest_fd):
+    shutil.copy(src_rest_fd, dest_rest_fd)
+  else:
+    shutil.copytree(src_rest_fd,dest_rest_fd)
 
+
+def modify_link(src_folder_path,dest_path_folder):
+    static_str="{% load static %}"
+    all_list_file_folder=glob.glob(src_folder_path+"/*")
+    list_html_file=glob.glob(src_folder_path+"/*.html")
+
+    rest_file_folder=set(all_list_file_folder)-set(list_html_file)
+    for i in list_html_file:
+        
+        with open(f"{i}") as fp:
+          soup = BeautifulSoup(fp, 'html.parser')
+      
+          list_tag=['link','a','img','script']
+          automata_href(list_tag,soup=soup,html_file_list=list_html_file)
+    
+        with open(dest_path_folder+"/"+i.split("/")[-1], "w", encoding='utf-8') as file:
+          file.write(static_str+str(soup))
+    
+    for i in rest_file_folder:
+      file_name=i.split("/")[-1]
+      if file_name in os.listdir(dest_path_folder):
+          target=dest_path_folder+"/"+file_name
+          if os.path.isfile(target):
+             os.unlink(target)
+          else:
+            shutil.rmtree(target)
+          
+      reset_folder_file_copy(i,dest_path_folder+"/"+file_name)
 
 
 
@@ -47,17 +75,17 @@ def modify_link(src_path,dest_path,output_filename=""):
 
 if __name__=="__main__":
   parser=argparse.ArgumentParser()
-  parser.add_argument("--source_path",help="source_html_file")
-  parser.add_argument("--dest_path",help="destination_of_modify_file")
-  parser.add_argument("--output_filename",help="destination_of_modify_file")
+  parser.add_argument("--src_folder_path",help="source_html_file")
+  parser.add_argument("--dest_folder_path",help="destination_of_modify_file")
+
 
   
 
   args=parser.parse_args()
 
-  get_file_path=args.source_path
+  get_src_path_folder=args.src_folder_path
  
-  destination_path=args.dest_path
-  output_filename=args.output_filename
+  get_dest_path_folder=args.dest_folder_path
+ 
 
-  modify_link(src_path=get_file_path,dest_path=destination_path,output_filename=output_filename)
+  modify_link(src_folder_path=get_src_path_folder,dest_path_folder=get_dest_path_folder)
